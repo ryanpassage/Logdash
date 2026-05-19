@@ -147,13 +147,19 @@ Each phase ends with a commit and a runnable app per CLAUDE.md instructions.
   - `_write_samples` skips unreachable servers; all write methods swallow exceptions to prevent scheduler disruption
   - 36 tests passing (13 new storage tests added)
 
-### Phase 3 — Drill-down pages + charts
-- `server.html` page with JVM/process/OS panels and pipeline table
-- `pipeline.html` page with per-plugin breakdown
-- `/api/server/<name>/series` endpoint returning recent samples as JSON
-- Chart.js line charts: events/sec, JVM heap %, pipeline throughput
-- Alpine.js for chart range toggles (1h / 6h / 24h)
-- **Verify:** navigate from dashboard → server → pipeline, observe charts populated from Table Storage.
+### Phase 3 — Drill-down pages + charts ✅ COMPLETE
+- `server.html` — JVM/process/OS panels, pipeline table, Chart.js charts (events/sec + heap %)
+- `pipeline.html` — quick stat tiles, per-plugin tables (inputs/filters/outputs), throughput chart
+- `logdash/routes/server.py` — new Blueprint: `/server/<name>` + `/server/<name>/pipeline/<id>`
+- `/api/server/<name>/series?metric=&range=` — time-series JSON from Table Storage (events, jvm, pipeline)
+- `storage.py` — `query_event_samples`, `query_jvm_samples`, `query_pipeline_samples` + `_since_inverted`/`_row_to_sample` helpers
+- Chart.js with `chartjs-adapter-date-fns` for time-scale x-axis; Alpine.js for 1H/6H/24H range toggle
+- `app.config['storage']` exposed so series API endpoint can access the adapter
+- **Notes:**
+  - Script load order: Chart.js + date adapter before Alpine.js (both `defer`'d — order matters)
+  - Series endpoint returns `[]` when no storage configured; charts render gracefully empty
+  - Pipeline route uses `<path:pipeline_id>` to handle IDs containing slashes or dots
+  - 43 tests passing (7 new storage query tests added)
 
 ### Phase 4 — Rollups + retention
 - Hourly rollup job writing `HourlyRollups`

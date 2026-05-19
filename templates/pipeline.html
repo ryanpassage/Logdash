@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+
+{% block title %}{{ pipeline.id }} — {{ server_name }} — LogDash{% endblock %}
+
+{% block content %}
+
+{# ── Breadcrumb ── #}
+<nav class="breadcrumb">
+  <a href="/">Dashboard</a>
+  <span class="breadcrumb-sep">›</span>
+  <a href="/server/{{ server_name | urlencode }}">{{ server_name }}</a>
+  <span class="breadcrumb-sep">›</span>
+  <span>{{ pipeline.id }}</span>
+</nav>
+
+{# ── Page header ── #}
+<div class="page-header">
+  <div>
+    <h1 class="page-title"><code style="font-size:inherit">{{ pipeline.id }}</code></h1>
+    <div class="server-meta" style="margin-top: 6px">
+      {% if pipeline.workers %}<span class="meta-chip">{{ pipeline.workers }} worker{{ 's' if pipeline.workers != 1 }}</span>{% endif %}
+      {% if pipeline.batch_size %}<span class="meta-chip">batch {{ pipeline.batch_size }}</span>{% endif %}
+      {% if pipeline.queue_type %}<span class="meta-chip">{{ pipeline.queue_type }} queue</span>{% endif %}
+    </div>
+  </div>
+  <div>
+    {% if pipeline.reload_failures > 0 %}
+      <span class="status-badge red"><span class="status-dot"></span>{{ pipeline.reload_failures }} reload failure{{ 's' if pipeline.reload_failures != 1 }}</span>
+    {% else %}
+      <span class="status-badge green"><span class="status-dot"></span>Running</span>
+    {% endif %}
+  </div>
+</div>
+
+{# ── Quick stats ── #}
+<div class="panel-grid panel-grid-4" style="margin-bottom: 24px">
+  <div class="panel">
+    <div class="panel-head"><span class="panel-title">Events In (total)</span></div>
+    <div class="panel-body">
+      <div style="padding: 16px 18px; font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--accent)">
+        {{ "{:,}".format(pipeline.events_in) }}
+      </div>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="panel-head"><span class="panel-title">Events Out (total)</span></div>
+    <div class="panel-body">
+      <div style="padding: 16px 18px; font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--green)">
+        {{ "{:,}".format(pipeline.events_out) }}
+      </div>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="panel-head"><span class="panel-title">Avg Duration</span></div>
+    <div class="panel-body">
+      <div style="padding: 16px 18px; font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--tx-1)">
+        {% if pipeline.events_in > 0 %}
+          {{ (pipeline.duration_ms / pipeline.events_in) | round(1) }}ms
+        {% else %}
+          —
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="panel-head"><span class="panel-title">Queue Depth</span></div>
+    <div class="panel-body">
+      <div style="padding: 16px 18px; font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; color: {% if pipeline.queue_events > 0 %}var(--yellow){% else %}var(--tx-1){% endif %}">
+        {{ "{:,}".format(pipeline.queue_events) }}
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ── Chart ── #}
+<div class="chart-section"
+     x-data="{
+       range: '1h',
+       async init() { await this.load(); },
+       async load() { await window.logdash.loadPipelineChart({{ server_name | tojson }}, {{ pipeline.id | tojson }}, this.range); }
+     }">
+  <div class="chart-controls">
+    <span class="chart-title">Pipeline Throughput</span>
+    <div class="range-btns">
+      <button class="range-btn" :class="{ active: range === '1h' }"
+              @click="range = '1h'; load()">1H</button>
+      <button class="range-btn" :class="{ active: range === '6h' }"
+              @click="range = '6h'; load()">6H</button>
+      <button class="range-btn" :class="{ active: range === '24h' }"
+              @click="range = '24h'; load()">24H</button>
+    </div>
+  </div>
+  <div class="chart-wrap">
+    <canvas id="pipeline-chart"></canvas>
+  </div>
+</div>
+
+{# ── Plugin tables ── #}
+
+{% macro plugin_table(plugins, title) %}
+<div class="panel" style="margin-bottom: 16px">
+  <div class="panel-head">
+    <span class="panel-title">{{ title }}</span>
+    <span class="meta-chip">{{ plugins | length }}</span>
+  </div>
+  {% if plugins %}
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Events In</th>
+        <th>Events Out</th>
+        <th>Duration</th>
+        <th>Avg Duration</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in plugins %}
+      <tr>
+        <td>
+          <span class="plugin-name">{{ p.name }}</span>
+          <span class="plugin-id">{{ p.id }}</span>
+        </td>
+        <td class="num">{{ "{:,}".format(p.events_in) }}</td>
+        <td class="num">{{ "{:,}".format(p.events_out) }}</td>
+        <td class="num">{{ p.duration_ms }}ms</td>
+        <td class="num">
+          {% if p.events_in > 0 %}
+            {{ (p.duration_ms / p.events_in) | round(2) }}ms
+          {% else %}—{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div style="padding: 14px 18px; color: var(--tx-3); font-size: 13px;">None configured</div>
+  {% endif %}
+</div>
+{% endmacro %}
+
+{{ plugin_table(pipeline.inputs, "Inputs") }}
+{{ plugin_table(pipeline.filters, "Filters") }}
+{{ plugin_table(pipeline.outputs, "Outputs") }}
+
+{% endblock %}

@@ -1,7 +1,7 @@
 import time
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch
 
-from logdash.storage import StorageAdapter, _inverted_ticks
+from logdash.storage import StorageAdapter, _inverted_ticks, _since_inverted, _row_to_sample
 
 
 # ---------------------------------------------------------------------------
@@ -178,3 +178,76 @@ def test_write_health_correct_fields():
     assert entity["status"] == "yellow"
     assert "JVM heap high" in entity["reason"]
     assert "reload failures" in entity["reason"]
+
+
+# ---------------------------------------------------------------------------
+# _since_inverted / _row_to_sample
+# ---------------------------------------------------------------------------
+
+def test_since_inverted_is_20_chars():
+    assert len(_since_inverted(60)) == 20
+
+
+def test_since_inverted_greater_than_current():
+    # N minutes ago has a larger inverted value (older = larger RowKey)
+    current = _inverted_ticks()
+    since = _since_inverted(60)
+    assert since > current
+
+
+def test_row_to_sample_reconstructs_timestamp():
+    from logdash.storage import _MAX_TICKS
+    now_ms = int(time.time() * 1000)
+    row_key = f"{_MAX_TICKS - now_ms:020d}"
+    row = {"RowKey": row_key, "PartitionKey": "ls-01", "events_in": 100}
+    sample = _row_to_sample(row)
+    assert "ts" in sample
+    assert "events_in" in sample
+    assert "PartitionKey" not in sample
+    assert "RowKey" not in sample
+
+
+# ---------------------------------------------------------------------------
+# query_event_samples / query_jvm_samples / query_pipeline_samples
+# ---------------------------------------------------------------------------
+
+def test_query_event_samples_returns_list():
+    adapter, mock_service, mock_table = _make_adapter()
+    from logdash.storage import _MAX_TICKS
+    now_ms = int(time.time() * 1000)
+    row_key = f"{_MAX_TICKS - now_ms:020d}"
+    mock_table.query_entities.return_value = [
+        {"RowKey": row_key, "PartitionKey": "ls-01", "events_in": 100, "events_out": 90, "events_filtered": 5, "queue_size": 0},
+    ]
+    rows = adapter.query_event_samples("ls-01", 60)
+    assert len(rows) == 1
+    assert rows[0]["events_in"] == 100
+    assert "ts" in rows[0]
+
+
+def test_query_event_samples_returns_empty_on_exception():
+    adapter, mock_service, mock_table = _make_adapter()
+    mock_table.query_entities.side_effect = Exception("not found")
+    rows = adapter.query_event_samples("ls-01", 60)
+    assert rows == []
+
+
+def test_query_jvm_samples_returns_list():
+    adapter, mock_service, mock_table = _make_adapter()
+    from logdash.storage import _MAX_TICKS
+    now_ms = int(time.time() * 1000)
+    row_key = f"{_MAX_TICKS - now_ms:020d}"
+    mock_table.query_entities.return_value = [
+        {"RowKey": row_key, "PartitionKey": "ls-01", "heap_used_bytes": 500, "heap_max_bytes": 1000, "threads_count": 40},
+    ]
+    rows = adapter.query_jvm_samples("ls-01", 60)
+    assert len(rows) == 1
+    assert rows[0]["heap_used_bytes"] == 500
+
+
+def test_query_pipeline_samples_uses_correct_partition_key():
+    adapter, mock_service, mock_table = _make_adapter()
+    mock_table.query_entities.return_value = []
+    adapter.query_pipeline_samples("ls-01", "main", 60)
+    call_kwargs = mock_table.query_entities.call_args[1]
+    assert "ls-01|main" in call_kwargs["query_filter"]

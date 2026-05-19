@@ -1,5 +1,6 @@
 import logging
 import time
+from datetime import datetime, timezone
 
 from azure.data.tables import TableServiceClient
 
@@ -118,3 +119,60 @@ class StorageAdapter:
             self._get_table("Health").create_entity(entity)
         except Exception as exc:
             logger.warning("Failed to write Health for %s: %s", server, exc)
+
+    def query_event_samples(self, server: str, minutes: int) -> list[dict]:
+        since = _since_inverted(minutes)
+        try:
+            rows = self._get_table("EventSamples").query_entities(
+                query_filter=f"PartitionKey eq '{server}' and RowKey le '{since}'",
+                select=["RowKey", "events_in", "events_out", "events_filtered", "queue_size"],
+            )
+            return [_row_to_sample(r) for r in rows]
+        except Exception as exc:
+            logger.warning("query EventSamples %s: %s", server, exc)
+            return []
+
+    def query_jvm_samples(self, server: str, minutes: int) -> list[dict]:
+        since = _since_inverted(minutes)
+        try:
+            rows = self._get_table("JvmSamples").query_entities(
+                query_filter=f"PartitionKey eq '{server}' and RowKey le '{since}'",
+                select=["RowKey", "heap_used_bytes", "heap_max_bytes", "threads_count"],
+            )
+            return [_row_to_sample(r) for r in rows]
+        except Exception as exc:
+            logger.warning("query JvmSamples %s: %s", server, exc)
+            return []
+
+    def query_pipeline_samples(self, server: str, pipeline_id: str, minutes: int) -> list[dict]:
+        since = _since_inverted(minutes)
+        pk = f"{server}|{pipeline_id}"
+        try:
+            rows = self._get_table("PipelineSamples").query_entities(
+                query_filter=f"PartitionKey eq '{pk}' and RowKey le '{since}'",
+                select=["RowKey", "events_in", "events_out", "events_filtered", "queue_size"],
+            )
+            return [_row_to_sample(r) for r in rows]
+        except Exception as exc:
+            logger.warning("query PipelineSamples %s|%s: %s", server, pipeline_id, exc)
+            return []
+
+
+def _since_inverted(minutes: int) -> str:
+    """Return the inverted-ticks RowKey corresponding to `minutes` ago."""
+    now_ms = int(time.time() * 1000)
+    since_ms = now_ms - minutes * 60 * 1000
+    return f"{_MAX_TICKS - since_ms:020d}"
+
+
+def _row_to_sample(row) -> dict:
+    """Convert a Table Storage entity back to a plain dict with an ISO timestamp."""
+    row_key = row.get("RowKey", "0")
+    ts_ms = _MAX_TICKS - int(row_key)
+    ts = datetime.fromtimestamp(ts_ms / 1000, tz=timezone.utc).isoformat()
+    result = {"ts": ts}
+    skip = {"PartitionKey", "RowKey", "etag", "Timestamp", "metadata"}
+    for k, v in row.items():
+        if k not in skip:
+            result[k] = v
+    return result

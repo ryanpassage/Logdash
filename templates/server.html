@@ -1,0 +1,241 @@
+{% extends "base.html" %}
+
+{% block title %}{{ server.name }} — LogDash{% endblock %}
+
+{% block content %}
+
+{# ── Breadcrumb ── #}
+<nav class="breadcrumb">
+  <a href="/">Dashboard</a>
+  <span class="breadcrumb-sep">›</span>
+  <span>{{ server.name }}</span>
+</nav>
+
+{# ── Page header ── #}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">{{ server.name }}</h1>
+    <div class="server-meta" style="margin-top: 6px">
+      {% if server.version %}<span class="version-tag">v{{ server.version }}</span>{% endif %}
+      {% if server.hostname %}<span class="meta-chip">{{ server.hostname }}</span>{% endif %}
+      {% if server.uptime_ms %}<span class="meta-chip">↑ {{ format_uptime(server.uptime_ms) }}</span>{% endif %}
+      {% if server.last_seen %}
+        <span class="meta-chip last-seen" data-ts="{{ server.last_seen }}">—</span>
+      {% endif %}
+    </div>
+  </div>
+  <div style="display:flex; align-items:center; gap:12px">
+    {% if server.reachable %}
+      <a href="/server/{{ server.name | urlencode }}/hot-threads" class="nav-link">Hot Threads</a>
+    {% endif %}
+    <span class="status-badge {{ server.health.status }}">
+      <span class="status-dot"></span>
+      {% if server.health.status == 'green' %}Healthy
+      {% elif server.health.status == 'yellow' %}Warning
+      {% elif server.health.status == 'red' %}Critical
+      {% else %}Unknown{% endif %}
+    </span>
+  </div>
+</div>
+
+{% if server.health.status != 'green' and server.health.reasons %}
+<div class="health-reason {{ server.health.status }}" style="border-radius: var(--radius-sm); margin-bottom: 20px">
+  <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/></svg>
+  {{ server.health.reasons | join(' · ') }}
+</div>
+{% endif %}
+
+{% if not server.reachable %}
+<div class="offline-banner" style="border-radius: var(--radius-sm); margin-bottom: 20px">
+  <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-5a.75.75 0 01.75.75v4.5a.75.75 0 01-1.5 0v-4.5A.75.75 0 0110 5zm0 10a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/></svg>
+  <span>Server is unreachable — showing last known data</span>
+</div>
+{% endif %}
+
+{# ── Info panels ── #}
+<div class="panel-grid">
+
+  {# JVM Panel #}
+  <div class="panel">
+    <div class="panel-head">
+      <span class="panel-title">JVM</span>
+      <span class="metric-badge{% if server.heap_pct >= 95 %} red{% elif server.heap_pct >= 80 %} yellow{% else %} green{% endif %}">
+        {{ server.heap_pct }}% heap
+      </span>
+    </div>
+    <div class="panel-body">
+      <div class="heap-bar-row">
+        <div class="heap-track heap-track-lg">
+          <div class="heap-fill{% if server.heap_pct >= 95 %} critical{% elif server.heap_pct >= 80 %} warn{% endif %}"
+               style="width: {{ server.heap_pct }}%"></div>
+        </div>
+        <span class="heap-pct-label">{{ server.heap_pct }}%</span>
+      </div>
+      <div class="metric">
+        <span class="metric-label">Heap Used</span>
+        <span class="metric-value">{{ format_bytes(server.heap_used) }}</span>
+      </div>
+      <div class="metric">
+        <span class="metric-label">Heap Max</span>
+        <span class="metric-value">{{ format_bytes(server.heap_max) }}</span>
+      </div>
+      <div class="metric">
+        <span class="metric-label">Threads</span>
+        <span class="metric-value">{{ server.thread_count }}{% if server.thread_peak %} <span class="metric-dim">/ {{ server.thread_peak }} peak</span>{% endif %}</span>
+      </div>
+      {% if server.gc_young_count or server.gc_old_count %}
+      <div class="metric">
+        <span class="metric-label">GC Young</span>
+        <span class="metric-value">{{ "{:,}".format(server.gc_young_count) }} <span class="metric-dim">{{ server.gc_young_ms }}ms</span></span>
+      </div>
+      <div class="metric">
+        <span class="metric-label">GC Old</span>
+        <span class="metric-value">{{ "{:,}".format(server.gc_old_count) }} <span class="metric-dim">{{ server.gc_old_ms }}ms</span></span>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {# Process Panel #}
+  <div class="panel">
+    <div class="panel-head">
+      <span class="panel-title">Process</span>
+      <span class="metric-badge{% if server.cpu_pct >= 90 %} red{% elif server.cpu_pct >= 70 %} yellow{% endif %}">
+        {{ server.cpu_pct }}% CPU
+      </span>
+    </div>
+    <div class="panel-body">
+      <div class="metric">
+        <span class="metric-label">CPU</span>
+        <span class="metric-value">{{ server.cpu_pct }}%</span>
+      </div>
+      {% if server.open_fds %}
+      <div class="metric">
+        <span class="metric-label">Open FDs</span>
+        <span class="metric-value">{{ "{:,}".format(server.open_fds) }}{% if server.max_fds %} <span class="metric-dim">/ {{ "{:,}".format(server.max_fds) }}</span>{% endif %}</span>
+      </div>
+      {% endif %}
+      <div class="metric">
+        <span class="metric-label">Events In/s</span>
+        <span class="metric-value">{{ format_rate(server.events_in) }}</span>
+      </div>
+      <div class="metric">
+        <span class="metric-label">Events Out/s</span>
+        <span class="metric-value">{{ format_rate(server.events_out) }}</span>
+      </div>
+    </div>
+  </div>
+
+  {# OS Panel #}
+  <div class="panel">
+    <div class="panel-head">
+      <span class="panel-title">OS</span>
+      {% if server.os_cpu_pct %}
+      <span class="metric-badge{% if server.os_cpu_pct >= 90 %} red{% elif server.os_cpu_pct >= 70 %} yellow{% endif %}">
+        {{ server.os_cpu_pct }}% sys CPU
+      </span>
+      {% endif %}
+    </div>
+    <div class="panel-body">
+      {% if server.os_cpu_pct %}
+      <div class="metric">
+        <span class="metric-label">CPU</span>
+        <span class="metric-value">{{ server.os_cpu_pct }}%</span>
+      </div>
+      {% endif %}
+      {% if server.load_1m or server.load_5m or server.load_15m %}
+      <div class="metric">
+        <span class="metric-label">Load Avg</span>
+        <span class="metric-value">
+          {{ "%.2f"|format(server.load_1m) }}
+          <span class="metric-dim">/ {{ "%.2f"|format(server.load_5m) }} / {{ "%.2f"|format(server.load_15m) }}</span>
+        </span>
+      </div>
+      {% endif %}
+      <div class="metric">
+        <span class="metric-label">Uptime</span>
+        <span class="metric-value">{{ format_uptime(server.uptime_ms) or '—' }}</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+{# ── Charts ── #}
+<div class="chart-section"
+     x-data="{
+       range: '1h',
+       async init() { await this.load(); },
+       async load() { await window.logdash.loadServerCharts({{ server.name | tojson }}, this.range); }
+     }">
+  <div class="chart-controls">
+    <span class="chart-title">Throughput &amp; JVM Heap</span>
+    <div class="range-btns">
+      <button class="range-btn" :class="{ active: range === '1h' }"
+              @click="range = '1h'; load()">1H</button>
+      <button class="range-btn" :class="{ active: range === '6h' }"
+              @click="range = '6h'; load()">6H</button>
+      <button class="range-btn" :class="{ active: range === '24h' }"
+              @click="range = '24h'; load()">24H</button>
+    </div>
+  </div>
+  <div class="chart-wrap">
+    <canvas id="events-chart"></canvas>
+  </div>
+  <div class="chart-wrap" style="margin-top: 16px">
+    <canvas id="jvm-chart"></canvas>
+  </div>
+</div>
+
+{# ── Pipelines table ── #}
+<div class="panel" style="margin-bottom: 24px">
+  <div class="panel-head">
+    <span class="panel-title">Pipelines</span>
+    <span class="meta-chip">{{ server.pipelines | length }}</span>
+  </div>
+  {% if server.pipelines %}
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Pipeline</th>
+        <th>Workers</th>
+        <th>Events In</th>
+        <th>Events Out</th>
+        <th>Duration</th>
+        <th>Queue</th>
+        <th>Status</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in server.pipelines %}
+      <tr>
+        <td><code>{{ p.id }}</code></td>
+        <td>{{ p.workers }}</td>
+        <td class="num">{{ "{:,}".format(p.events_in) }}</td>
+        <td class="num">{{ "{:,}".format(p.events_out) }}</td>
+        <td class="num">{{ p.duration_ms }}ms</td>
+        <td class="num">
+          {% if p.queue_type %}
+            <span class="meta-chip">{{ p.queue_type }}</span>
+          {% endif %}
+          {{ "{:,}".format(p.queue_events) }}
+        </td>
+        <td>
+          {% if p.reload_failures > 0 %}
+            <span class="pill red">{{ p.reload_failures }} failure{{ 's' if p.reload_failures != 1 }}</span>
+          {% else %}
+            <span class="pill green">running</span>
+          {% endif %}
+        </td>
+        <td><a href="/server/{{ server.name | urlencode }}/pipeline/{{ p.id | urlencode }}" class="details-link">Details →</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div style="padding: 20px 18px; color: var(--tx-3); font-size: 13px;">No pipeline data available.</div>
+  {% endif %}
+</div>
+
+{% endblock %}

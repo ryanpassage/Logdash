@@ -11,6 +11,7 @@ from config import Config
 from logdash import collector
 from logdash.routes import api as api_routes
 from logdash.routes import dashboard as dashboard_routes
+from logdash.routes import server as server_routes
 
 logging.basicConfig(
     level=logging.INFO,
@@ -61,6 +62,7 @@ def create_app() -> Flask:
 
     app.register_blueprint(dashboard_routes.bp)
     app.register_blueprint(api_routes.bp)
+    app.register_blueprint(server_routes.bp)
 
     @app.route("/healthz")
     def healthz():
@@ -80,6 +82,7 @@ def create_app() -> Flask:
             logging.getLogger(__name__).warning(
                 "AZURE_STORAGE_CONNECTION_STRING not set — running without persistence"
             )
+        app.config["storage"] = storage
         collector.start(
             Config.SERVERS,
             Config.POLL_INTERVAL,

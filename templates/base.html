@@ -6,8 +6,9 @@
   <title>{% block title %}LogDash{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/site.css') }}">
   <script src="https://unpkg.com/htmx.org@2.0.3/dist/htmx.min.js" defer></script>
-  <script src="https://unpkg.com/alpinejs@3.14.3/dist/cdn.min.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js" defer></script>
+  <script src="https://unpkg.com/alpinejs@3.14.3/dist/cdn.min.js" defer></script>
 </head>
 <body>
   <header class="site-header">
@@ -36,5 +37,6 @@
   </main>
 
   <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+  {% block scripts %}{% endblock %}
 </body>
 </html>

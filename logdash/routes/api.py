@@ -1,9 +1,11 @@
-from flask import Blueprint, jsonify
+from flask import Blueprint, current_app, jsonify, request
 
 from logdash import collector
 from logdash.health import compute_health
 
 bp = Blueprint("api", __name__, url_prefix="/api")
+
+_RANGE_MINUTES = {"1h": 60, "6h": 360, "24h": 1440}
 
 
 @bp.route("/snapshot")
@@ -32,3 +34,28 @@ def snapshot():
             "pipeline_count": len(stats.get("pipelines") or {}),
         }
     return jsonify(result)
+
+
+@bp.route("/server/<name>/series")
+def server_series(name):
+    metric = request.args.get("metric", "events")
+    range_str = request.args.get("range", "1h")
+    pipeline_id = request.args.get("pipeline", "")
+    minutes = _RANGE_MINUTES.get(range_str, 60)
+
+    storage = current_app.config.get("storage")
+    if not storage:
+        return jsonify([])
+
+    if metric == "events":
+        rows = storage.query_event_samples(name, minutes)
+    elif metric == "jvm":
+        rows = storage.query_jvm_samples(name, minutes)
+    elif metric == "pipeline" and pipeline_id:
+        rows = storage.query_pipeline_samples(name, pipeline_id, minutes)
+    else:
+        return jsonify([])
+
+    # Storage returns newest-first; reverse so charts read left-to-right (oldest → newest)
+    rows.reverse()
+    return jsonify(rows)
