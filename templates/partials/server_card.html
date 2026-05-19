@@ -1,0 +1,100 @@
+<article class="server-card status-{{ server.health.status }}{% if server.reachable == false %} unreachable{% endif %}">
+
+  {# ── Card header ── #}
+  <div class="card-header">
+    <div class="card-title-group">
+      <h2 class="server-name">{{ server.name }}</h2>
+      <div class="server-meta">
+        {% if server.version %}<span class="version-tag">v{{ server.version }}</span>{% endif %}
+        {% if server.hostname %}<span>{{ server.hostname }}</span>{% endif %}
+        {% if server.uptime_ms %}<span title="Uptime">↑ {{ format_uptime(server.uptime_ms) }}</span>{% endif %}
+      </div>
+    </div>
+    <span class="status-badge {{ server.health.status }}">
+      <span class="status-dot"></span>
+      {% if server.health.status == 'green' %}Healthy
+      {% elif server.health.status == 'yellow' %}Warning
+      {% elif server.health.status == 'red' %}Critical
+      {% else %}Unknown{% endif %}
+    </span>
+  </div>
+
+  {# ── Stats grid (only when reachable) ── #}
+  {% if server.reachable %}
+  <div class="card-stats">
+
+    <div class="stat-item">
+      <span class="stat-label">Events In</span>
+      <span class="stat-value">
+        {{ format_rate(server.events_in) }}<span class="stat-unit">/s</span>
+      </span>
+    </div>
+
+    <div class="stat-item">
+      <span class="stat-label">Events Out</span>
+      <span class="stat-value">
+        {{ format_rate(server.events_out) }}<span class="stat-unit">/s</span>
+      </span>
+    </div>
+
+    <div class="stat-item">
+      <span class="stat-label">JVM Heap</span>
+      <span class="stat-value">
+        {{ server.heap_pct }}<span class="stat-unit">%</span>
+      </span>
+      <div class="heap-track">
+        <div class="heap-fill{% if server.heap_pct >= 95 %} critical{% elif server.heap_pct >= 80 %} warn{% endif %}"
+             style="width: {{ server.heap_pct }}%"></div>
+      </div>
+    </div>
+
+    <div class="stat-item">
+      <span class="stat-label">CPU</span>
+      <span class="stat-value">
+        {{ server.cpu_pct }}<span class="stat-unit">%</span>
+      </span>
+    </div>
+
+    <div class="stat-item stat-wide">
+      <span class="stat-label">Pipelines</span>
+      <span class="stat-value pipeline-count">
+        {{ server.pipeline_count }}
+        {% if server.reload_failures > 0 %}
+          <span class="pill yellow">{{ server.reload_failures }} reload err</span>
+        {% elif server.pipeline_count > 0 %}
+          <span class="pill green">running</span>
+        {% endif %}
+      </span>
+    </div>
+
+  </div>
+
+  {# ── Health reason (shown when non-green) ── #}
+  {% if server.health.status != 'green' and server.health.reasons %}
+  <div class="health-reason {{ server.health.status }}">
+    <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/></svg>
+    {{ server.health.reasons[0] }}
+  </div>
+  {% endif %}
+
+  {% else %}
+  {# ── Unreachable state ── #}
+  <div class="offline-banner">
+    <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-5a.75.75 0 01.75.75v4.5a.75.75 0 01-1.5 0v-4.5A.75.75 0 0110 5zm0 10a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/></svg>
+    <span>Unable to connect</span>
+  </div>
+  {% endif %}
+
+  {# ── Card footer ── #}
+  <div class="card-footer">
+    {% if server.last_seen %}
+      <span class="last-seen" data-ts="{{ server.last_seen }}" title="{{ server.last_seen }}">—</span>
+    {% else %}
+      <span class="last-seen muted">Never seen</span>
+    {% endif %}
+    {% if server.reachable %}
+      <a href="/server/{{ server.name | urlencode }}" class="details-link">Details →</a>
+    {% endif %}
+  </div>
+
+</article>

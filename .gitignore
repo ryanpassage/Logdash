@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+dist/
+*.egg-info/
+
+# Environment
+.env
+
+# Azure / Azurite local storage
+.azurite/
+
+# Editors
+.DS_Store
+.idea/
+.vscode/
+
+# Pytest
+.pytest_cache/

@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+
+{% block title %}LogDash — Cluster Dashboard{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Cluster Dashboard</h1>
+    <p class="page-subtitle">{{ servers | length }} server{{ 's' if servers | length != 1 else '' }} monitored</p>
+  </div>
+  <div class="cluster-health">
+    {% set red_count = servers | selectattr('health.status', 'equalto', 'red') | list | length %}
+    {% set yellow_count = servers | selectattr('health.status', 'equalto', 'yellow') | list | length %}
+    {% set green_count = servers | selectattr('health.status', 'equalto', 'green') | list | length %}
+    {% if red_count > 0 %}
+      <span class="cluster-badge red">{{ red_count }} Critical</span>
+    {% endif %}
+    {% if yellow_count > 0 %}
+      <span class="cluster-badge yellow">{{ yellow_count }} Warning</span>
+    {% endif %}
+    {% if green_count > 0 %}
+      <span class="cluster-badge green">{{ green_count }} Healthy</span>
+    {% endif %}
+  </div>
+</div>
+
+<div id="server-cards-container"
+     hx-get="/_partial/server-cards"
+     hx-trigger="every 10s"
+     hx-swap="innerHTML"
+     hx-on::after-request="window.logdash.onRefresh()">
+  {% include "partials/server_cards.html" %}
+</div>
+{% endblock %}
