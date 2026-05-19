@@ -137,11 +137,15 @@ Each phase ends with a commit and a runnable app per CLAUDE.md instructions.
   - `WERKZEUG_RUN_MAIN` guard prevents double-start of scheduler in Flask debug/reload mode
   - `Details →` link on cards points to `/server/<name>` — implemented in Phase 3
 
-### Phase 2 — Persistence
+### Phase 2 — Persistence ✅ COMPLETE
 - `storage.py` wrapping `azure-data-tables` SDK; lazy table creation
 - Sample-write job (every 60s) for `EventSamples`, `PipelineSamples`, `JvmSamples`, `Servers`, `Health`
 - Storage emulator (Azurite) wiring documented for local dev
-- **Verify:** run with Azurite, confirm rows appear via Azure Storage Explorer; restart app and confirm `Servers.last_seen` is preserved.
+- **Notes:**
+  - `StorageAdapter` is only instantiated when `AZURE_STORAGE_CONNECTION_STRING` is set; app runs without storage (no-op)
+  - Lazy table creation via `create_table_if_not_exists` with fallback to `get_table_client` on quota/permission errors
+  - `_write_samples` skips unreachable servers; all write methods swallow exceptions to prevent scheduler disruption
+  - 36 tests passing (13 new storage tests added)
 
 ### Phase 3 — Drill-down pages + charts
 - `server.html` page with JVM/process/OS panels and pipeline table

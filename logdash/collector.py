@@ -17,7 +17,12 @@ def get_snapshot() -> ServerSnapshot | None:
     return _snapshot
 
 
-def start(servers: list[dict], poll_interval: int) -> None:
+def start(
+    servers: list[dict],
+    poll_interval: int,
+    storage=None,
+    sample_interval: int = 60,
+) -> None:
     global _snapshot, _scheduler
 
     _snapshot = ServerSnapshot()
@@ -43,6 +48,17 @@ def start(servers: list[dict], poll_interval: int) -> None:
         max_instances=1,
         coalesce=True,
     )
+    if storage is not None:
+        _scheduler.add_job(
+            _write_samples,
+            trigger="interval",
+            seconds=sample_interval,
+            args=[clients, storage],
+            id="collector-sample",
+            max_instances=1,
+            coalesce=True,
+        )
+        logger.info("Storage sampling enabled — writing every %ds", sample_interval)
     _scheduler.start()
     logger.info("Collector started — polling %d server(s) every %ds", len(clients), poll_interval)
 
@@ -67,3 +83,22 @@ def _poll_all(clients: list[LogstashClient]) -> None:
         except Exception:
             logger.exception("Unexpected error polling %s", client.name)
             _snapshot.mark_unreachable(client.name)
+
+
+def _write_samples(clients: list[LogstashClient], storage) -> None:
+    for client in clients:
+        data = _snapshot.get(client.name)
+        if not data.get("reachable"):
+            continue
+        try:
+            info = data.get("info") or {}
+            stats = data.get("stats") or {}
+            health = compute_health(data)
+            storage.write_server(client.name, info, stats)
+            storage.write_event_sample(client.name, stats)
+            storage.write_pipeline_samples(client.name, stats)
+            storage.write_jvm_sample(client.name, stats)
+            storage.write_health(client.name, health)
+            logger.debug("Wrote sample for %s", client.name)
+        except Exception:
+            logger.exception("Unexpected error writing samples for %s", client.name)

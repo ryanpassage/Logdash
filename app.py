@@ -71,7 +71,21 @@ def create_app() -> Flask:
     # is active in development (the reloader forks a child process where the
     # actual server runs; we only want the scheduler in that child).
     if not app.debug or os.environ.get("WERKZEUG_RUN_MAIN") == "true":
-        collector.start(Config.SERVERS, Config.POLL_INTERVAL)
+        storage = None
+        if Config.STORAGE_CONNECTION_STRING:
+            from logdash.storage import StorageAdapter
+            storage = StorageAdapter(Config.STORAGE_CONNECTION_STRING)
+            logging.getLogger(__name__).info("Azure Table Storage enabled")
+        else:
+            logging.getLogger(__name__).warning(
+                "AZURE_STORAGE_CONNECTION_STRING not set — running without persistence"
+            )
+        collector.start(
+            Config.SERVERS,
+            Config.POLL_INTERVAL,
+            storage=storage,
+            sample_interval=Config.SAMPLE_INTERVAL,
+        )
 
     return app
 
