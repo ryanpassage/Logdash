@@ -177,6 +177,10 @@
               @click="range = '6h'; load()">6H</button>
       <button class="range-btn" :class="{ active: range === '24h' }"
               @click="range = '24h'; load()">24H</button>
+      <button class="range-btn" :class="{ active: range === '7d' }"
+              @click="range = '7d'; load()">7D</button>
+      <button class="range-btn" :class="{ active: range === '30d' }"
+              @click="range = '30d'; load()">30D</button>
     </div>
   </div>
   <div class="chart-wrap">

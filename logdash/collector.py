@@ -22,6 +22,8 @@ def start(
     poll_interval: int,
     storage=None,
     sample_interval: int = 60,
+    sample_retention_days: int = 30,
+    rollup_retention_days: int = 365,
 ) -> None:
     global _snapshot, _scheduler
 
@@ -58,7 +60,28 @@ def start(
             max_instances=1,
             coalesce=True,
         )
-        logger.info("Storage sampling enabled — writing every %ds", sample_interval)
+        _scheduler.add_job(
+            _do_rollup,
+            trigger="interval",
+            hours=1,
+            args=[clients, storage],
+            id="collector-rollup",
+            max_instances=1,
+            coalesce=True,
+        )
+        _scheduler.add_job(
+            _do_purge,
+            trigger="interval",
+            hours=24,
+            args=[storage, sample_retention_days, rollup_retention_days],
+            id="collector-purge",
+            max_instances=1,
+            coalesce=True,
+        )
+        logger.info(
+            "Storage sampling enabled — writing every %ds, rollup every 1h, purge every 24h",
+            sample_interval,
+        )
     _scheduler.start()
     logger.info("Collector started — polling %d server(s) every %ds", len(clients), poll_interval)
 
@@ -102,3 +125,29 @@ def _write_samples(clients: list[LogstashClient], storage) -> None:
             logger.debug("Wrote sample for %s", client.name)
         except Exception:
             logger.exception("Unexpected error writing samples for %s", client.name)
+
+
+def _do_rollup(clients: list[LogstashClient], storage) -> None:
+    """Aggregate per-minute samples from the previous completed hour into HourlyRollups."""
+    import time as _time
+    now = int(_time.time())
+    prev_hour_start = now - (now % 3600) - 3600
+    for client in clients:
+        data = _snapshot.get(client.name) if _snapshot else {}
+        try:
+            pipeline_ids = list(((data.get("stats") or {}).get("pipelines") or {}).keys())
+            storage.rollup_events(client.name, prev_hour_start)
+            storage.rollup_jvm(client.name, prev_hour_start)
+            storage.rollup_pipelines(client.name, pipeline_ids, prev_hour_start)
+            logger.debug("Rolled up hour %d for %s", prev_hour_start, client.name)
+        except Exception:
+            logger.exception("Rollup failed for %s", client.name)
+
+
+def _do_purge(storage, sample_retention_days: int, rollup_retention_days: int) -> None:
+    """Delete expired rows from all sample and rollup tables."""
+    try:
+        storage.purge_old_samples(sample_retention_days, rollup_retention_days)
+        logger.info("Purge complete")
+    except Exception:
+        logger.exception("Purge failed")

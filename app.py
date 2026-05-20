@@ -88,6 +88,8 @@ def create_app() -> Flask:
             Config.POLL_INTERVAL,
             storage=storage,
             sample_interval=Config.SAMPLE_INTERVAL,
+            sample_retention_days=Config.SAMPLE_RETENTION_DAYS,
+            rollup_retention_days=Config.ROLLUP_RETENTION_DAYS,
         )
 
     return app

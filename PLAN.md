@@ -161,11 +161,20 @@ Each phase ends with a commit and a runnable app per CLAUDE.md instructions.
   - Pipeline route uses `<path:pipeline_id>` to handle IDs containing slashes or dots
   - 43 tests passing (7 new storage query tests added)
 
-### Phase 4 — Rollups + retention
-- Hourly rollup job writing `HourlyRollups`
-- Daily purge job deleting expired rows
-- Chart range >24h pulls from `HourlyRollups` instead of raw samples
-- **Verify:** seed sample data with timestamps spanning >24h; confirm rollups generated and old rows purged.
+### Phase 4 — Rollups + retention ✅ COMPLETE
+- Hourly rollup job writing `HourlyRollups` (`rollup_events`, `rollup_jvm`, `rollup_pipelines` in `storage.py`)
+- Daily purge job deleting expired rows (`purge_old_samples` / `_purge_table` in `storage.py`)
+- Chart range >24h (`7d`, `30d`) pulls from `HourlyRollups` instead of raw samples
+- `_query_hourly` in `api.py` normalizes delta field names (`events_in_delta` → `events_in`) so existing chart JS works unchanged
+- `server.html` and `pipeline.html` now have 7D/30D range buttons
+- `app.js` switches y-axis label to "events / hour" for hourly ranges
+- 60 tests passing (17 new: helper functions, rollup, purge, hourly queries)
+- **Notes:**
+  - `rollup_events`/`rollup_pipelines` computes `events_*_delta` (last − first, clamped ≥ 0) since Logstash counters are cumulative
+  - `rollup_jvm` stores `heap_used_avg`, `heap_used_max`, `heap_max_avg`, `threads_avg`
+  - `_purge_table` queries `RowKey gt cutoff` (full-table scan across all partitions); acceptable at monitoring scale
+  - Rollup job runs hourly targeting `prev_hour_start = now − (now % 3600) − 3600`
+  - Purge job runs daily; swallows all exceptions to prevent scheduler disruption
 
 ### Phase 5 — Hot threads + polish + deploy
 - `/server/<name>/hot-threads` on-demand fetch

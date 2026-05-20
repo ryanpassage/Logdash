@@ -137,18 +137,22 @@ window.logdash = window.logdash || {};
     }
   }
 
+  const HOURLY_RANGES = new Set(['7d', '30d']);
+
   window.logdash.loadServerCharts = async function (serverName, range) {
     const base = `/api/server/${encodeURIComponent(serverName)}/series`;
+    const isHourly = HOURLY_RANGES.has(range);
     const [evRows, jvmRows] = await Promise.all([
       fetchSeries(`${base}?metric=events&range=${range}`),
       fetchSeries(`${base}?metric=jvm&range=${range}`),
     ]);
 
     // Events chart
+    const evLabel = isHourly ? 'events / hour' : 'events / s';
     renderChart('events-chart', [
-      makeDataset('Events In/s',  evRows.map(r => ({ x: new Date(r.ts), y: r.events_in  ?? null })), COLORS.blue),
-      makeDataset('Events Out/s', evRows.map(r => ({ x: new Date(r.ts), y: r.events_out ?? null })), COLORS.green),
-    ], 'events / s');
+      makeDataset('Events In',  evRows.map(r => ({ x: new Date(r.ts), y: r.events_in  ?? null })), COLORS.blue),
+      makeDataset('Events Out', evRows.map(r => ({ x: new Date(r.ts), y: r.events_out ?? null })), COLORS.green),
+    ], evLabel);
 
     // JVM heap chart
     const heapRows = jvmRows.map(r => ({
@@ -163,10 +167,11 @@ window.logdash = window.logdash || {};
   window.logdash.loadPipelineChart = async function (serverName, pipelineId, range) {
     const url = `/api/server/${encodeURIComponent(serverName)}/series`
       + `?metric=pipeline&pipeline=${encodeURIComponent(pipelineId)}&range=${range}`;
+    const isHourly = HOURLY_RANGES.has(range);
     const rows = await fetchSeries(url);
     renderChart('pipeline-chart', [
       makeDataset('Events In',  rows.map(r => ({ x: new Date(r.ts), y: r.events_in  ?? null })), COLORS.blue),
       makeDataset('Events Out', rows.map(r => ({ x: new Date(r.ts), y: r.events_out ?? null })), COLORS.green),
-    ], 'events (cumulative)');
+    ], isHourly ? 'events / hour' : 'events (cumulative)');
   };
 }());
