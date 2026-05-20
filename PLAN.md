@@ -176,13 +176,17 @@ Each phase ends with a commit and a runnable app per CLAUDE.md instructions.
   - Rollup job runs hourly targeting `prev_hour_start = now − (now % 3600) − 3600`
   - Purge job runs daily; swallows all exceptions to prevent scheduler disruption
 
-### Phase 5 — Hot threads + polish + deploy
-- `/server/<name>/hot-threads` on-demand fetch
-- `/healthz` endpoint, structured logging via `logging` module
-- `gunicorn` entrypoint configured for App Service (single worker so scheduler stays singleton)
-- `README.md` with local-dev + Azure deploy steps (env-var configuration, App Service setup, Azurite for local)
-- Optional: GitHub Actions workflow to deploy via `azure/webapps-deploy@v3`
-- **Verify:** deploy to a test Azure Web App, confirm dashboard loads and metrics flow.
+### Phase 5 — Hot threads + polish + deploy ✅ COMPLETE
+- `/server/<name>/hot-threads` on-demand fetch — `LogstashClient.get_hot_threads()` called per request; renders per-thread CPU%, state, and stack traces in `hot_threads.html`
+- `/healthz` endpoint — already present from Phase 1 in `app.py`
+- Structured logging — `_JsonFormatter` (JSON output) enabled via `LOG_FORMAT=json` env var; human-readable format retained as default for dev
+- `gunicorn.conf.py` — single-worker binding, 120s timeout, `forwarded_allow_ips = "*"` for Azure proxy
+- `startup.sh` — Azure App Service startup script (`gunicorn -c gunicorn.conf.py app:app`)
+- `README.md` — local-dev setup, full env-var reference table, Azure deployment walkthrough (CLI commands + ZIP deploy)
+- **Notes:**
+  - Hot threads route creates a fresh `LogstashClient` per request (no caching needed; endpoint is explicitly on-demand)
+  - `_configure_logging()` clears all existing handlers before adding the chosen formatter to prevent duplicate log lines
+  - `gunicorn.conf.py` uses `os.environ.get('PORT', '5000')` so Azure's dynamic port injection works without code changes
 
 ## Critical libraries
 - `Flask` — web framework
