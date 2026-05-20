@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+
+{% block title %}Hot Threads — {{ server_name }} — LogDash{% endblock %}
+
+{% block content %}
+
+<nav class="breadcrumb">
+  <a href="/">Dashboard</a>
+  <span class="breadcrumb-sep">›</span>
+  <a href="/server/{{ server_name | urlencode }}">{{ server_name }}</a>
+  <span class="breadcrumb-sep">›</span>
+  <span>Hot Threads</span>
+</nav>
+
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Hot Threads</h1>
+    {% if threads and threads.time %}
+      <div class="server-meta" style="margin-top: 6px">
+        <span class="meta-chip">Captured {{ threads.time }}</span>
+        {% if threads.busiest_threads %}
+          <span class="meta-chip">Top {{ threads.busiest_threads }} threads</span>
+        {% endif %}
+      </div>
+    {% endif %}
+  </div>
+  <a href="/server/{{ server_name | urlencode }}/hot-threads"
+     class="nav-link"
+     style="align-self: flex-start; margin-top: 6px">↻ Refresh</a>
+</div>
+
+{% if error %}
+  <div class="offline-banner" style="border-radius: var(--radius-sm); margin-bottom: 20px">
+    <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-5a.75.75 0 01.75.75v4.5a.75.75 0 01-1.5 0v-4.5A.75.75 0 0110 5zm0 10a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/></svg>
+    <span>{{ error }}</span>
+  </div>
+{% elif not threads or not threads.get('threads') %}
+  <div class="panel">
+    <div class="panel-body" style="padding: 24px; color: var(--tx-3); font-size: 13px;">
+      No hot thread data returned by the server.
+    </div>
+  </div>
+{% else %}
+  {% for thread in threads.threads %}
+  <div class="panel" style="margin-bottom: 16px">
+    <div class="panel-head" style="align-items: flex-start; gap: 12px">
+      <div style="flex: 1; min-width: 0">
+        <span class="panel-title" style="font-family: var(--mono); font-size: 13px; word-break: break-all">
+          {{ thread.name or '(unnamed)' }}
+        </span>
+        {% if thread.state %}
+          <span class="meta-chip" style="margin-left: 8px">{{ thread.state }}</span>
+        {% endif %}
+      </div>
+      <span class="metric-badge{% if thread.percent_of_cpu_time >= 50 %} red{% elif thread.percent_of_cpu_time >= 20 %} yellow{% else %} green{% endif %}"
+            style="white-space: nowrap; flex-shrink: 0">
+        {{ "%.1f"|format(thread.percent_of_cpu_time or 0) }}% CPU
+      </span>
+    </div>
+    {% if thread.traces %}
+    <div class="panel-body" style="padding: 0">
+      <pre class="thread-trace">{% for line in thread.traces %}{{ line }}
+{% endfor %}</pre>
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+{% endif %}
+
+{% endblock %}

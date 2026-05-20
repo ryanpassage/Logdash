@@ -1,7 +1,9 @@
 from flask import Blueprint, abort, render_template
 
+from config import Config
 from logdash import collector
 from logdash.health import compute_health
+from logdash.logstash_client import LogstashClient
 
 bp = Blueprint("server", __name__)
 
@@ -16,6 +18,28 @@ def server_detail(name):
     if data.get("reachable") is None and not data.get("last_seen"):
         abort(404)
     return render_template("server.html", server=_build_server(name, data))
+
+
+@bp.route("/server/<name>/hot-threads")
+def hot_threads(name):
+    server_cfg = next((s for s in Config.SERVERS if s["name"] == name), None)
+    if server_cfg is None:
+        abort(404)
+    client = LogstashClient(name, server_cfg["url"], timeout=Config.HTTP_TIMEOUT)
+    data = client.get_hot_threads()
+    if data is None:
+        return render_template(
+            "hot_threads.html",
+            server_name=name,
+            threads=None,
+            error="Could not fetch hot threads — server may be unreachable.",
+        )
+    return render_template(
+        "hot_threads.html",
+        server_name=name,
+        threads=data.get("hot_threads") or {},
+        error=None,
+    )
 
 
 @bp.route("/server/<name>/pipeline/<path:pipeline_id>")

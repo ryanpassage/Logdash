@@ -1,5 +1,7 @@
+import json
 import logging
 import os
+import time
 
 from dotenv import load_dotenv
 
@@ -13,10 +15,37 @@ from logdash.routes import api as api_routes
 from logdash.routes import dashboard as dashboard_routes
 from logdash.routes import server as server_routes
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-)
+
+class _JsonFormatter(logging.Formatter):
+    """Emit one JSON object per log line — compatible with Azure Monitor / Log Analytics."""
+
+    def format(self, record: logging.LogRecord) -> str:
+        payload = {
+            "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(record.created)),
+            "level": record.levelname,
+            "logger": record.name,
+            "msg": record.getMessage(),
+        }
+        if record.exc_info:
+            payload["exc"] = self.formatException(record.exc_info)
+        return json.dumps(payload)
+
+
+def _configure_logging() -> None:
+    # LOG_FORMAT=json enables structured JSON output (recommended for production/Azure)
+    use_json = os.environ.get("LOG_FORMAT", "").lower() == "json"
+    fmt = _JsonFormatter() if use_json else logging.Formatter(
+        "%(asctime)s %(levelname)s %(name)s: %(message)s"
+    )
+    handler = logging.StreamHandler()
+    handler.setFormatter(fmt)
+    root = logging.getLogger()
+    root.setLevel(logging.INFO)
+    root.handlers.clear()
+    root.addHandler(handler)
+
+
+_configure_logging()
 
 
 def _format_uptime(ms: int) -> str:
