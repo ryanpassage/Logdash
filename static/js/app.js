@@ -93,13 +93,24 @@ window.logdash = window.logdash || {};
       x: {
         type: 'time',
         time: {
-          tooltipFormat: 'HH:mm:ss',
+          tooltipFormat: 'MMM d, HH:mm',
           displayFormats: { minute: 'HH:mm', hour: 'HH:mm' },
         },
         ...BASE_SCALE,
       },
       y: { beginAtZero: true, ...BASE_SCALE },
     },
+  };
+
+  // Per-range x-axis window (ms) + time unit/format so switching ranges
+  // re-scales the axis to the selected window rather than auto-fitting to data.
+  const HOUR = 3_600_000, DAY = 86_400_000;
+  const RANGE_AXIS = {
+    '1h':  { ms: HOUR,      unit: 'minute', fmt: { minute: 'HH:mm' },  tooltip: 'HH:mm:ss' },
+    '6h':  { ms: 6 * HOUR,  unit: 'hour',   fmt: { hour: 'HH:mm' },    tooltip: 'HH:mm:ss' },
+    '24h': { ms: 24 * HOUR, unit: 'hour',   fmt: { hour: 'HH:mm' },    tooltip: 'MMM d, HH:mm' },
+    '7d':  { ms: 7 * DAY,   unit: 'day',    fmt: { day: 'MMM d' },     tooltip: 'MMM d, HH:mm' },
+    '30d': { ms: 30 * DAY,  unit: 'day',    fmt: { day: 'MMM d' },     tooltip: 'MMM d' },
   };
 
   function makeDataset(label, data, color, fill) {
@@ -116,13 +127,22 @@ window.logdash = window.logdash || {};
     };
   }
 
-  function renderChart(canvasId, datasets, yLabel) {
+  function renderChart(canvasId, datasets, yLabel, range) {
     const canvas = document.getElementById(canvasId);
     if (!canvas) return;
     if (canvas._ldChart) canvas._ldChart.destroy();
     const opts = structuredClone(BASE_OPTS);
     if (yLabel) {
       opts.scales.y.title = { display: true, text: yLabel, color: '#556078', font: { size: 10 } };
+    }
+    const axis = RANGE_AXIS[range];
+    if (axis) {
+      const now = Date.now();
+      opts.scales.x.min = now - axis.ms;
+      opts.scales.x.max = now;
+      opts.scales.x.time.unit = axis.unit;
+      opts.scales.x.time.displayFormats = axis.fmt;
+      opts.scales.x.time.tooltipFormat = axis.tooltip;
     }
     canvas._ldChart = new Chart(canvas, { type: 'line', data: { datasets }, options: opts });
   }
@@ -152,7 +172,7 @@ window.logdash = window.logdash || {};
     renderChart('events-chart', [
       makeDataset('Events In',  evRows.map(r => ({ x: new Date(r.ts), y: r.events_in  ?? null })), COLORS.blue),
       makeDataset('Events Out', evRows.map(r => ({ x: new Date(r.ts), y: r.events_out ?? null })), COLORS.green),
-    ], evLabel);
+    ], evLabel, range);
 
     // JVM heap chart
     const heapRows = jvmRows.map(r => ({
@@ -161,7 +181,7 @@ window.logdash = window.logdash || {};
     }));
     renderChart('jvm-chart', [
       makeDataset('Heap %', heapRows, COLORS.yellow, true),
-    ], 'heap %');
+    ], 'heap %', range);
   };
 
   window.logdash.loadPipelineChart = async function (serverName, pipelineId, range) {
@@ -172,6 +192,6 @@ window.logdash = window.logdash || {};
     renderChart('pipeline-chart', [
       makeDataset('Events In',  rows.map(r => ({ x: new Date(r.ts), y: r.events_in  ?? null })), COLORS.blue),
       makeDataset('Events Out', rows.map(r => ({ x: new Date(r.ts), y: r.events_out ?? null })), COLORS.green),
-    ], isHourly ? 'events / hour' : 'events (cumulative)');
+    ], isHourly ? 'events / hour' : 'events (cumulative)', range);
   };
 }());
