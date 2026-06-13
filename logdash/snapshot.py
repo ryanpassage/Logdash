@@ -17,7 +17,13 @@ class ServerSnapshot:
             if name not in self._data:
                 self._data[name] = _empty_entry(name)
 
-    def update(self, name: str, info: dict | None, stats: dict | None) -> None:
+    def update(
+        self,
+        name: str,
+        info: dict | None,
+        stats: dict | None,
+        health_report: dict | None = None,
+    ) -> None:
         now = time.monotonic()
         wall = datetime.now(timezone.utc).isoformat()
         with self._lock:
@@ -35,6 +41,7 @@ class ServerSnapshot:
                 "last_seen_ts": now,
                 "info": info or {},
                 "stats": stats or {},
+                "health_report": health_report or {},
                 "events_in": rate["in"],
                 "events_out": rate["out"],
                 "events_filtered": rate["filtered"],
@@ -95,6 +102,7 @@ def _empty_entry(name: str) -> dict:
         "last_seen_ts": None,
         "info": {},
         "stats": {},
+        "health_report": {},
         "events_in": 0.0,
         "events_out": 0.0,
         "events_filtered": 0.0,

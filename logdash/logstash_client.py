@@ -50,6 +50,12 @@ class LogstashClient:
         """GET /_node/hot_threads — on-demand, used in drill-down view."""
         return self._get("/_node/hot_threads?human=true")
 
+    def get_health_report(self) -> dict | None:
+        """GET /_health_report — structured health with per-indicator (incl.
+        per-pipeline) symptoms and diagnoses. Available on Logstash 8.7+;
+        returns None on older nodes that 404 the endpoint."""
+        return self._get("/_health_report")
+
     def fetch_all(self) -> tuple[dict | None, dict | None]:
         """Fetch both info and stats for the dashboard collector."""
         info = self.get_info()

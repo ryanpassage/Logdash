@@ -101,6 +101,63 @@ def stats():
     })
 
 
+@app.get("/_health_report")
+def health_report():
+    """Structured Logstash Health Report (8.7+). For non-green nodes, surfaces a
+    pipeline-level diagnosis so the dashboard can explain *why* a node is unhealthy."""
+    if STATUS == "green":
+        return jsonify({
+            "status": "green",
+            "symptom": "Everything is feeling great",
+            "indicators": {
+                "pipelines": {"status": "green", "symptom": "All pipelines are healthy"},
+            },
+        })
+
+    if STATUS == "red":
+        pipeline = {
+            "status": "red",
+            "symptom": "The pipeline is unhealthy; 1 area is impacted and 1 diagnosis is available",
+            "diagnosis": [{
+                "cause": "pipeline is not running, likely because it encountered an error",
+                "action": "view Logstash logs to determine why the pipeline stopped",
+            }],
+            "impacts": [{
+                "severity": 1,
+                "description": "the pipeline is not currently processing",
+                "impact_areas": ["pipeline_execution"],
+            }],
+            "details": {"status": {"state": "TERMINATED"}},
+        }
+    else:  # yellow
+        pipeline = {
+            "status": "yellow",
+            "symptom": "The pipeline is concerning; 1 area is impacted and 1 diagnosis is available",
+            "diagnosis": [{
+                "cause": "pipeline is experiencing backpressure on its persisted queue",
+                "action": "investigate downstream outputs; the queue is filling faster than it drains",
+            }],
+            "impacts": [{
+                "severity": 2,
+                "description": "the pipeline may be applying backpressure to its inputs",
+                "impact_areas": ["pipeline_execution"],
+            }],
+            "details": {"status": {"state": "RUNNING"}},
+        }
+
+    return jsonify({
+        "status": STATUS,
+        "symptom": "1 indicator is unhealthy (`pipelines`)",
+        "indicators": {
+            "pipelines": {
+                "status": STATUS,
+                "symptom": "1 indicator is unhealthy (`firewall-logs`)",
+                "indicators": {"firewall-logs": pipeline},
+            },
+        },
+    })
+
+
 @app.get("/_node/hot_threads")
 def hot_threads():
     return jsonify({

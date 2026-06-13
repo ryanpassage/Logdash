@@ -78,3 +78,61 @@ def test_red_beats_yellow():
     data = _base_data(status="yellow", heap_used=970_000_000, heap_max=1_000_000_000)
     result = compute_health(data)
     assert result["status"] == "red"
+
+
+# ── Health Report API ────────────────────────────────────────────────────────
+
+def _report(status, cause, pipeline_id="firewall-logs"):
+    return {
+        "status": status,
+        "symptom": "1 indicator is unhealthy (`pipelines`)",
+        "indicators": {
+            "pipelines": {
+                "status": status,
+                "symptom": f"1 indicator is unhealthy (`{pipeline_id}`)",
+                "indicators": {
+                    pipeline_id: {
+                        "status": status,
+                        "symptom": "The pipeline is unhealthy",
+                        "diagnosis": [{"cause": cause, "action": "check the logs"}],
+                    }
+                },
+            }
+        },
+    }
+
+
+def test_health_report_surfaces_pipeline_diagnosis():
+    data = _base_data()
+    data["health_report"] = _report("red", "pipeline is not running")
+    result = compute_health(data)
+    assert result["status"] == "red"
+    assert any("firewall-logs" in r and "not running" in r for r in result["reasons"])
+
+
+def test_health_report_drives_status_without_stats_status():
+    # No status in /_node/stats; the health report alone should make it yellow.
+    data = _base_data(status="")
+    data["health_report"] = _report("yellow", "experiencing backpressure")
+    result = compute_health(data)
+    assert result["status"] == "yellow"
+    assert any("backpressure" in r for r in result["reasons"])
+
+
+def test_health_report_falls_back_to_symptom_without_diagnosis():
+    data = _base_data(status="")
+    data["health_report"] = {
+        "status": "red",
+        "symptom": "node-level failure",
+        "indicators": {},
+    }
+    result = compute_health(data)
+    assert result["status"] == "red"
+    assert "node-level failure" in result["reasons"]
+
+
+def test_green_health_report_leaves_status_green():
+    data = _base_data(status="")
+    data["health_report"] = {"status": "green", "symptom": "all good", "indicators": {}}
+    result = compute_health(data)
+    assert result["status"] == "green"

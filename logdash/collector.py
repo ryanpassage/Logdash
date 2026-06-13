@@ -100,7 +100,10 @@ def _poll_all(clients: list[LogstashClient]) -> None:
             if info is None and stats is None:
                 _snapshot.mark_unreachable(client.name)
             else:
-                _snapshot.update(client.name, info, stats)
+                # Pull the structured Health Report only when the node responds,
+                # so non-green nodes surface pipeline-level diagnoses.
+                health_report = client.get_health_report()
+                _snapshot.update(client.name, info, stats, health_report)
             health = compute_health(_snapshot.get(client.name))
             logger.debug("%s → %s: %s", client.name, health["status"], health["reasons"][0])
         except Exception:
