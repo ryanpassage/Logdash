@@ -74,10 +74,12 @@
 
 {# ── Chart ── #}
 <div class="chart-section"
+     data-server="{{ server_name }}"
+     data-pipeline="{{ pipeline.id }}"
      x-data="{
        range: '1h',
        async init() { await this.load(); },
-       async load() { await window.logdash.loadPipelineChart({{ server_name | tojson }}, {{ pipeline.id | tojson }}, this.range); }
+       async load() { await window.logdash.loadPipelineChart(this.$el.dataset.server, this.$el.dataset.pipeline, this.range); }
      }">
   <div class="chart-controls">
     <span class="chart-title">Pipeline Throughput</span>

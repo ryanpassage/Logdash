@@ -163,10 +163,11 @@
 
 {# ── Charts ── #}
 <div class="chart-section"
+     data-server="{{ server.name }}"
      x-data="{
        range: '1h',
        async init() { await this.load(); },
-       async load() { await window.logdash.loadServerCharts({{ server.name | tojson }}, this.range); }
+       async load() { await window.logdash.loadServerCharts(this.$el.dataset.server, this.range); }
      }">
   <div class="chart-controls">
     <span class="chart-title">Throughput &amp; JVM Heap</span>
